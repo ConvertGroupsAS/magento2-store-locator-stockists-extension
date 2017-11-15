@@ -21,6 +21,7 @@ namespace Limesharp\Stockists\Model;
 
 use Magento\UrlRewrite\Model\UrlRewrite as BaseUrlRewrite;
 use Magento\UrlRewrite\Service\V1\Data\UrlRewrite as UrlRewriteService;
+use Magento\UrlRewrite\Model\UrlRewriteFactory;
 use Magento\UrlRewrite\Model\UrlFinderInterface;
 use Magento\Framework\App\Config\Value;
 use Magento\Store\Model\ScopeInterface;
@@ -51,7 +52,11 @@ class UrlRewrite extends Value
      * @var $urlRewriteService
      */
 	protected $urlRewriteService;
+
+    /** @var \Magento\UrlRewrite\Service\V1\Data\UrlRewriteFactory */
+    protected $urlRewriteFactory;
 		
+
     /**
      * Store manager
      *
@@ -88,6 +93,7 @@ class UrlRewrite extends Value
      * @param array $data
 	 * @param \Magento\UrlRewrite\Model\UrlRewrite $urlRewrite
 	 * @param \Magento\UrlRewrite\Service\V1\Data\UrlRewrite $UrlRewriteService
+	 * @param UrlRewriteFactory $urlRewriteFactory
 	 * @param \Magento\Store\Model\StoreManagerInterface $storeManager
 	 * @param \Magento\UrlRewrite\Model\UrlFinderInterface $urlFinder
      */
@@ -101,12 +107,14 @@ class UrlRewrite extends Value
         AbstractDb $resourceCollection = null,
 	    BaseUrlRewrite $urlRewrite,
 	    UrlRewriteService $urlRewriteService,
+	    UrlRewriteFactory $urlRewriteFactory,
 	    StoreManagerInterface $storeManager,
 	    UrlFinderInterface $urlFinder,
         array $data = []
     ) {
 		$this->urlRewrite = $urlRewrite;
 		$this->urlRewriteService = $urlRewriteService;
+		$this->urlRewriteFactory = $urlRewriteFactory;
 		$this->storeManager = $storeManager;
 	    $this->urlFinder = $urlFinder;
 		$this->scopeConfig = $config;
@@ -121,7 +129,7 @@ class UrlRewrite extends Value
     public function afterSave()
     {
 
-		$storeId = $this->storeManager->getStore()->getId();
+		//$storeId = $this->storeManager->getStore()->getId();
 
 		if($this->hasDataChanges()){ //different from default
 			
@@ -130,50 +138,51 @@ class UrlRewrite extends Value
 			foreach ($this->_data as $key => $value) {
 				
 				if($key == "field" && $value == "url"){
-					
-					$filterData = [
-		                UrlRewriteService::TARGET_PATH => "stockists",
-		                UrlRewriteService::STORE_ID => $storeId
-		            ];
-					
-					$rewriteFinder = $this->urlFinder->findOneByData($filterData);
-					
-					// if it was already set, just update it to the new one
-					if($rewriteFinder){
-						
-						if($getCustomUrlRewrite != "stockists"){
+					foreach ($this->storeManager->getStores() as $store) {
+                        if ($store->isActive()) { 
+                        	$storeId  = $store->getId();
+							$filterData = [
+				                UrlRewriteService::TARGET_PATH => "stockists",
+				                UrlRewriteService::STORE_ID => $storeId
+				            ];
+							
+							$rewriteFinder = $this->urlFinder->findOneByData($filterData);
+							
+							// if it was already set, just update it to the new one
+							if($rewriteFinder){
+								
+								if($getCustomUrlRewrite != "stockists"){
 
-							$this->urlRewrite->load($rewriteFinder->getUrlRewriteId())
-											->setRequestPath($getCustomUrlRewrite)
-											->save();
-											
-						} else {
+									$this->urlRewrite->load($rewriteFinder->getUrlRewriteId())
+													->setRequestPath($getCustomUrlRewrite)
+													->save();
+													
+								} else {
 
-							$this->urlRewrite->load($rewriteFinder->getUrlRewriteId())->delete();
-							
-						}
-						
-					} else {
-						
-						if($getCustomUrlRewrite != "stockists"){
-							
-							$this->urlRewrite->setStoreId($storeId)
-							->setIdPath(rand(1, 100000))
-							->setRequestPath($getCustomUrlRewrite)
-							->setTargetPath("stockists")
-							->setIsSystem(0)
-							->save();
-							
-						}
-					}
+									$this->urlRewrite->load($rewriteFinder->getUrlRewriteId())->delete();
+									
+								}
+								
+							} else {
+								if($getCustomUrlRewrite != "stockists"){
+									$urlRewrite = $this->urlRewriteFactory->create();
+									$urlRewrite->setStoreId($storeId)
+									->setIdPath(rand(1, 100000))
+									->setRequestPath($getCustomUrlRewrite)
+									->setTargetPath("stockists")
+									->setIsSystem(0)
+									->save();
+								}
+							}
+					    }
+				    }
 				}
 			}
 		}
 		
         return parent::afterSave();
     }
-    
-    
+
     /**
      * get url from configuration
      *
