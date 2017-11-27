@@ -59,7 +59,9 @@ class Stores extends \Magento\Framework\App\Action\Action
      */
     public function execute()
     {        
-        $collection = $this->collectionFactory->create()->getData();
+        $collection = $this->collectionFactory->create()
+            ->addStoreFilter($this->storeManager->getStore())
+            ->getData();
         $json = [];
         foreach ($collection as $stockist) {
             $json[] = $stockist;
